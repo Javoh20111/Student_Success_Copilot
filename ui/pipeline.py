@@ -29,7 +29,7 @@ from ui.input_layer import load_demo_profile, collect_student_inputs
 from planner.planner import compare_planners, display_schedule as planner_display_schedule
 from rules.engine import forward_chain
 from ml.dataset import load_dataset, generate_dataset
-
+from ml.model import train_models, predict_risk
 
 
 # =============================================================================
@@ -40,22 +40,14 @@ _MODEL_CACHE: Optional[Dict[str, Any]] = None
 
 
 def train_once(force: bool = False) -> Dict[str, Any]:
-    global _MODEL_CACHE
-    if _MODEL_CACHE is None or force:
-        from ml.model import train_models   # ← moved inside
-        ...
     """
     Train ML models once and cache them for the session.
     Always generates a fresh 1000-row dataset to avoid stale CSVs
     (e.g. from test runs that write smaller datasets).
     Subsequent calls return the cached models unless force=True.
     """
-
-def train_once(force: bool = False) -> Dict[str, Any]:
     global _MODEL_CACHE
     if _MODEL_CACHE is None or force:
-        from ml.model import train_models   # ← moved inside
-        ...
         print_subheader("Training ML models  (one-time setup)")
         df = generate_dataset(n=1000)   # always 1000 rows — never read stale CSV
         _MODEL_CACHE = train_models(df)
@@ -67,12 +59,12 @@ def train_once(force: bool = False) -> Dict[str, Any]:
 # =============================================================================
 # 2.  Core pipeline
 # =============================================================================
-def run_pipeline(profile, models=None, verbose=True):
-    if models is None:
-        models = train_once()
-    from ml.model import predict_risk       # ← moved inside
-    ...
 
+def run_pipeline(
+    profile: Dict[str, Any],
+    models:  Optional[Dict[str, Any]] = None,
+    verbose: bool = True,
+) -> Dict[str, Any]:
     """
     Run all components on a single student profile.
 
@@ -132,8 +124,59 @@ def run_pipeline(profile, models=None, verbose=True):
     result["ml_predictions"] = ml_preds
 
     if verbose:
+        # ── Model performance on the full training dataset ────────────────────
+        print("  Model performance  (trained on 1000-row dataset, evaluated on 200-row test set)")
+        print()
+        W = 36
+        print(f"  {'Model':<{W}} {'Acc':>6} {'Prec':>6} {'Rec':>6} {'F1':>6}  "
+              f"{'FN':>4} {'FP':>4}  {'Epochs'}")
+        print("  " + "─" * (W + 50))
+
+        epoch_info = {
+            "baseline": "—",
+            "dt_d3":    "—",
+            "dt_d7":    "—",
+            "nb":       "—",
+            "nn":       None,
+        }
+
+        for key in ("baseline", "dt_d3", "dt_d7", "nb", "nn"):
+            r = models.get(key)
+            if not r:
+                continue
+            ep = (f"{r['epochs_run']}/{r['epochs_max']}"
+                  if key == "nn" and "epochs_run" in r
+                  else epoch_info.get(key, "—"))
+            print(f"  {r['name']:<{W}} "
+                  f"{r['accuracy']:>6.3f} {r['precision']:>6.3f} "
+                  f"{r['recall']:>6.3f} {r['f1']:>6.3f}  "
+                  f"{r['fn']:>4} {r['fp']:>4}  {ep}")
+
+        print()
+        print("  Key:  Acc=Accuracy  Prec=Precision  Rec=Recall  "
+              "FN=Missed at-risk  FP=False alarm")
+        print("  Note: In early-warning context Recall matters most "
+              "— missing at-risk students is costly.")
+        print()
+
+        # ── Loss curve summary for neural network ─────────────────────────────
+        nn = models.get("nn")
+        if nn and "loss_curve" in nn and nn["loss_curve"]:
+            curve = nn["loss_curve"]
+            print(f"  Neural Network training curve:")
+            print(f"    Epoch  1 loss : {curve[0]:.4f}")
+            print(f"    Epoch {len(curve):>2} loss : {curve[-1]:.4f}  "
+                  f"({'early stopping' if nn.get('stopped_early') else 'completed'})")
+            reduction = (curve[0] - curve[-1]) / curve[0] * 100
+            print(f"    Loss reduced  : {reduction:.1f}%  "
+                  f"(from {curve[0]:.4f} → {curve[-1]:.4f})")
+            print()
+
+        # ── This student's prediction ─────────────────────────────────────────
+        print("  Prediction for this student:")
         for model_name, pred in ml_preds.items():
-            print(f"  {model_name:<38} "
+            icon = "✅" if pred["prediction"] == "Pass" else "🚨"
+            print(f"  {icon}  {model_name:<38} "
                   f"→  {pred['prediction']:<6}  "
                   f"(confidence {pred['confidence']:.0%})")
         print()
