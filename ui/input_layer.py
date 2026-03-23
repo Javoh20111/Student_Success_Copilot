@@ -138,8 +138,8 @@ def validate_inputs(profile: Dict[str, Any]) -> List[Issue]:
                 f"Task '{t.get('name', '?')}' has a deadline in the past "
                 f"({dl} days). It has been marked OVERDUE.",
                 f"Has '{t.get('name', '?')}' already been submitted? "
-                "Enter 'yes' to remove it, or press ENTER to keep it as "
-                "OVERDUE (will be scheduled immediately):",
+                "Enter 'yes' to remove it, a new deadline in days (e.g. 3) "
+                "to correct it, or press ENTER to keep it as OVERDUE:",
                 sev="warning",
             )
 
@@ -416,23 +416,46 @@ def ask_followup(
                       "Value not updated.")
 
         elif fld.endswith(".deadline_days"):
-            # Overdue task follow-up: user can confirm it was submitted
-            # (remove it) or keep it as OVERDUE (deadline_days stays 0)
-            if answer.strip().lower() in ("yes", "y"):
-                task_idx = None
-                try:
-                    # Extract index from field name  "tasks[2].deadline_days"
-                    task_idx = int(fld.split("[")[1].split("]")[0])
-                except (IndexError, ValueError):
-                    pass
+            # Overdue task follow-up.
+            # Three valid responses:
+            #   "yes" / "y"  → task was submitted, remove it from the list
+            #   a number ≥ 0 → user corrects the deadline to that many days
+            #   ENTER / anything else → keep task as OVERDUE (deadline_days = 0)
+            task_idx = None
+            try:
+                task_idx = int(fld.split("[")[1].split("]")[0])
+            except (IndexError, ValueError):
+                pass
+
+            stripped = answer.strip().lower()
+
+            if stripped in ("yes", "y"):
+                # Remove the task entirely
                 if task_idx is not None:
-                    tasks = profile.get("tasks", [])
-                    if 0 <= task_idx < len(tasks):
-                        removed = tasks.pop(task_idx)
+                    tasks_list = profile.get("tasks", [])
+                    if 0 <= task_idx < len(tasks_list):
+                        removed = tasks_list.pop(task_idx)
                         print(f"  Removed '{removed.get('name','?')}' "
                               "from task list.")
+
             else:
-                print("  Task kept as OVERDUE — will be scheduled immediately.")
+                # Try to parse as a corrected deadline number
+                v = _safe_int(answer, None)
+                if v is None:
+                    v_f = _safe_float(answer, None)
+                    v = int(v_f) if v_f is not None else None
+
+                if v is not None and v >= 0:
+                    # Valid corrected deadline — update the task
+                    if task_idx is not None:
+                        tasks_list = profile.get("tasks", [])
+                        if 0 <= task_idx < len(tasks_list):
+                            tasks_list[task_idx]["deadline_days"] = v
+                            tasks_list[task_idx].pop("overdue", None)
+                            name = tasks_list[task_idx].get("name", "?")
+                            print(f"  Updated '{name}' deadline to {v} day(s).")
+                else:
+                    print("  Task kept as OVERDUE — will be scheduled immediately.")
 
         elif fld == "workload_credits":
             v = _safe_int(answer, None)
