@@ -1,0 +1,597 @@
+{
+  "meta": {
+    "version": "1.0",
+    "domain": "student_success",
+    "layers": ["O", "T", "D", "C"],
+    "layer_descriptions": {
+      "O": "OBSERVE  — raw inputs to signals",
+      "T": "THINK    — signals to hypotheses",
+      "D": "DECIDE   — hypotheses to risk actions",
+      "C": "CONFIRM  — positive reinforcement, risk downgrade"
+    },
+    "total_rules": 40
+  },
+
+  "rules": [
+
+    {
+      "_comment": "===== OBSERVE (O*): raw inputs -> signals =====",
+      "id": "O1",
+      "layer": "O",
+      "description": "Attendance below 70%",
+      "conditions": [
+        {"fact": "attendance", "op": "<", "value": 70}
+      ],
+      "conclusion": "low_attendance",
+      "confidence": 0.80,
+      "risk_vote": "High",
+      "signal": "Your attendance is below 70%.",
+      "recommendation": "Attend all remaining sessions — missing lectures compounds quickly."
+    },
+
+    {
+      "id": "O2",
+      "layer": "O",
+      "description": "Attendance critically low (below 50%)",
+      "conditions": [
+        {"fact": "attendance", "op": "<", "value": 50}
+      ],
+      "conclusion": "very_low_attendance",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "Your attendance is critically low — below 50%.",
+      "recommendation": "Contact your academic advisor immediately to discuss your attendance record."
+    },
+
+    {
+      "id": "O3",
+      "layer": "O",
+      "description": "Low self-confidence",
+      "conditions": [
+        {"fact": "confidence_level", "op": "<=", "value": 2}
+      ],
+      "conclusion": "low_confidence",
+      "confidence": 0.75,
+      "risk_vote": "Medium",
+      "signal": "You rated your confidence at 2/5 or lower.",
+      "recommendation": "Break large tasks into smaller sub-goals to rebuild momentum."
+    },
+
+    {
+      "id": "O4",
+      "layer": "O",
+      "description": "High stress level",
+      "conditions": [
+        {"fact": "stress_level", "op": ">=", "value": 4}
+      ],
+      "conclusion": "high_stress",
+      "confidence": 0.80,
+      "risk_vote": "Medium",
+      "signal": "Your stress level is high (4/5 or above).",
+      "recommendation": "Schedule at least one 30-minute break per study day. Consider speaking to a student wellbeing advisor."
+    },
+
+    {
+      "id": "O5",
+      "layer": "O",
+      "description": "Extreme stress level",
+      "conditions": [
+        {"fact": "stress_level", "op": "==", "value": 5}
+      ],
+      "conclusion": "extreme_stress",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "You reported maximum stress (5/5). This level significantly impairs study effectiveness.",
+      "recommendation": "Prioritise basic self-care today. Contact student wellbeing services — they can help re-plan workload."
+    },
+
+    {
+      "id": "O6",
+      "layer": "O",
+      "description": "Quiz scores below 50%",
+      "conditions": [
+        {"fact": "quiz_score_avg", "op": "<", "value": 50}
+      ],
+      "conclusion": "low_quiz",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Your average quiz / test score is below 50%.",
+      "recommendation": "Review lecture notes and past papers. Seek peer study groups or tutoring."
+    },
+
+    {
+      "id": "O7",
+      "layer": "O",
+      "description": "Quiz scores very low (below 35%)",
+      "conditions": [
+        {"fact": "quiz_score_avg", "op": "<", "value": 35}
+      ],
+      "conclusion": "very_low_quiz",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "Your quiz / test scores are very low — below 35%. This is a serious academic signal.",
+      "recommendation": "Arrange an urgent meeting with your tutor or module coordinator."
+    },
+
+    {
+      "id": "O8",
+      "layer": "O",
+      "description": "Urgent task with substantial hours",
+      "conditions": [
+        {"fact": "deadlines", "op": ">=", "value": 1},
+        {"fact": "workload_hours", "op": ">", "value": 4}
+      ],
+      "conclusion": "urgent_workload",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "You have at least one task due within 7 days requiring more than 4 hours of work.",
+      "recommendation": "Start the most urgent task immediately — do not defer to later in the week."
+    },
+
+    {
+      "id": "O9",
+      "layer": "O",
+      "description": "Three or more deadlines this week",
+      "conditions": [
+        {"fact": "deadlines", "op": ">=", "value": 3}
+      ],
+      "conclusion": "deadline_cluster",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "You have 3 or more tasks due within 7 days — deadline cluster detected.",
+      "recommendation": "Triage tasks by deadline then hours needed. Contact instructors early if any cannot be completed."
+    },
+
+    {
+      "id": "O10",
+      "layer": "O",
+      "description": "Exam within 4 days",
+      "conditions": [
+        {"list_fact": "exams", "any_field": "days_until", "op": "<=", "value": 4}
+      ],
+      "conclusion": "exam_imminent",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "You have an exam within 4 days.",
+      "recommendation": "Block at least 2 hours per day for exam revision. Reduce time on non-exam tasks until after the exam."
+    },
+
+    {
+      "id": "O11",
+      "layer": "O",
+      "description": "Required study hours exceed free time",
+      "conditions": [
+        {"fact": "hour_surplus", "op": ">", "value": 0}
+      ],
+      "conclusion": "hour_shortfall",
+      "confidence": 0.88,
+      "risk_vote": "High",
+      "signal": "Your required study hours exceed the free time available this week.",
+      "recommendation": "Negotiate deadline extensions where possible, or reduce task scope with your instructor."
+    },
+
+    {
+      "id": "O12",
+      "layer": "O",
+      "description": "Search planner failed to complete schedule",
+      "conditions": [
+        {"fact": "planner_found_goal", "op": "==", "value": false},
+        {"fact": "planner_not_scheduled", "op": "len_ge", "value": 1}
+      ],
+      "conclusion": "schedule_overload",
+      "confidence": 0.95,
+      "risk_vote": "High",
+      "signal": "The search planner could not fit all tasks into your available time slots.",
+      "recommendation": "Drop or delay the lowest-urgency task. Add study time on weekend days if possible."
+    },
+
+    {
+      "id": "O13",
+      "layer": "O",
+      "description": "Maximum credit load (80 credits)",
+      "conditions": [
+        {"fact": "workload_credits", "op": ">=", "value": 80}
+      ],
+      "conclusion": "max_credit_load",
+      "confidence": 0.70,
+      "risk_vote": "Medium",
+      "signal": "You are carrying the maximum credit load — 4 modules (80 credits). Any disruption will cascade.",
+      "recommendation": "Identify which module is lowest priority and reduce effort there to protect higher-stakes work."
+    },
+
+    {
+      "id": "O14",
+      "layer": "O",
+      "description": "Good attendance and high confidence (positive signal)",
+      "conditions": [
+        {"fact": "attendance", "op": ">=", "value": 80},
+        {"fact": "confidence_level", "op": ">=", "value": 4}
+      ],
+      "conclusion": "good_engagement",
+      "confidence": 0.80,
+      "risk_vote": "Low",
+      "signal": "Good attendance (80%+) and high confidence — strong engagement signals.",
+      "recommendation": "Keep up the routine. Consider helping peers — teaching reinforces your own understanding."
+    },
+
+    {
+      "id": "O15",
+      "layer": "O",
+      "description": "Overdue task present (past deadline)",
+      "conditions": [
+        {"list_fact": "tasks", "any_field": "overdue", "op": "is_true"}
+      ],
+      "conclusion": "overdue_task",
+      "confidence": 0.95,
+      "risk_vote": "High",
+      "signal": "You have at least one task whose deadline has already passed — marked OVERDUE.",
+      "recommendation": "Complete overdue work as soon as possible. Contact your instructor to discuss late submission options."
+    },
+
+    {
+      "_comment": "===== THINK (T*): signals -> hypotheses =====",
+      "id": "T1",
+      "layer": "T",
+      "description": "Engagement risk: low attendance combined with low confidence",
+      "conditions": [
+        {"fact": "low_attendance", "op": "is_true"},
+        {"fact": "low_confidence", "op": "is_true"}
+      ],
+      "conclusion": "engagement_risk",
+      "confidence": 0.75,
+      "risk_vote": "High",
+      "signal": "Low attendance combined with low confidence is a strong early-warning signal.",
+      "recommendation": "Visit office hours or a tutor to rebuild confidence. Attend all remaining sessions."
+    },
+
+    {
+      "id": "T2",
+      "layer": "T",
+      "description": "Academic failure risk: very low attendance and very low quiz scores",
+      "conditions": [
+        {"fact": "very_low_attendance", "op": "is_true"},
+        {"fact": "low_quiz", "op": "is_true"}
+      ],
+      "conclusion": "academic_failure_risk",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Very low attendance combined with low quiz scores suggests a serious academic failure risk.",
+      "recommendation": "Arrange an urgent meeting with your module coordinator and student support."
+    },
+
+    {
+      "id": "T3",
+      "layer": "T",
+      "description": "Critical overload: deadline cluster and schedule overload together",
+      "conditions": [
+        {"fact": "deadline_cluster", "op": "is_true"},
+        {"fact": "schedule_overload", "op": "is_true"}
+      ],
+      "conclusion": "critical_overload",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "Multiple deadlines this week AND the planner cannot fit them all — critical overload confirmed.",
+      "recommendation": "Immediately triage: identify which task can be partially submitted or deferred. Communicate with instructors today."
+    },
+
+    {
+      "id": "T4",
+      "layer": "T",
+      "description": "Deadline crunch: cluster of deadlines with insufficient free time",
+      "conditions": [
+        {"fact": "deadline_cluster", "op": "is_true"},
+        {"fact": "hour_shortfall", "op": "is_true"}
+      ],
+      "conclusion": "deadline_crunch",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Multiple deadlines coincide with insufficient free hours — deadline crunch detected.",
+      "recommendation": "Add available study days (e.g. weekend) or negotiate at least one extension."
+    },
+
+    {
+      "id": "T5",
+      "layer": "T",
+      "description": "Exam failure risk: imminent exam with low quiz performance",
+      "conditions": [
+        {"fact": "exam_imminent", "op": "is_true"},
+        {"fact": "low_quiz", "op": "is_true"}
+      ],
+      "conclusion": "exam_failure_risk",
+      "confidence": 0.80,
+      "risk_vote": "High",
+      "signal": "You have an imminent exam but current quiz scores suggest insufficient preparation.",
+      "recommendation": "Dedicate all available slots to exam revision. Skip non-exam tasks if necessary."
+    },
+
+    {
+      "id": "T6",
+      "layer": "T",
+      "description": "Exam overload: imminent exam and schedule already overloaded",
+      "conditions": [
+        {"fact": "exam_imminent", "op": "is_true"},
+        {"fact": "schedule_overload", "op": "is_true"}
+      ],
+      "conclusion": "exam_overload_risk",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "An imminent exam combined with an already overloaded schedule is a very high-risk combination.",
+      "recommendation": "Treat exam prep as the highest-priority task. Defer or drop other tasks to free up time."
+    },
+
+    {
+      "id": "T7",
+      "layer": "T",
+      "description": "Burnout risk: high stress with poor quiz performance",
+      "conditions": [
+        {"fact": "high_stress", "op": "is_true"},
+        {"fact": "low_quiz", "op": "is_true"}
+      ],
+      "conclusion": "burnout_risk",
+      "confidence": 0.70,
+      "risk_vote": "Medium",
+      "signal": "High stress combined with low quiz scores may indicate burnout or disengagement.",
+      "recommendation": "Take a short planned break before continuing. Sustained stress reduces study effectiveness."
+    },
+
+    {
+      "id": "T8",
+      "layer": "T",
+      "description": "Crisis risk: extreme stress with deadline cluster",
+      "conditions": [
+        {"fact": "extreme_stress", "op": "is_true"},
+        {"fact": "deadline_cluster", "op": "is_true"}
+      ],
+      "conclusion": "crisis_risk",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Extreme stress combined with multiple imminent deadlines — this is a student crisis signal.",
+      "recommendation": "Contact student wellbeing services today. Academic performance cannot improve without wellbeing support."
+    },
+
+    {
+      "id": "T9",
+      "layer": "T",
+      "description": "Paralysis risk: low confidence with urgent workload",
+      "conditions": [
+        {"fact": "low_confidence", "op": "is_true"},
+        {"fact": "urgent_workload", "op": "is_true"}
+      ],
+      "conclusion": "paralysis_risk",
+      "confidence": 0.70,
+      "risk_vote": "Medium",
+      "signal": "Low confidence combined with urgent tasks may lead to avoidance behaviour.",
+      "recommendation": "Start with the smallest sub-task of the most urgent piece of work to break the paralysis."
+    },
+
+    {
+      "id": "T10",
+      "layer": "T",
+      "description": "Overcommitted: maximum credits with high stress",
+      "conditions": [
+        {"fact": "max_credit_load", "op": "is_true"},
+        {"fact": "high_stress", "op": "is_true"}
+      ],
+      "conclusion": "overcommitted_risk",
+      "confidence": 0.75,
+      "risk_vote": "Medium",
+      "signal": "Maximum credit load combined with high stress suggests you may be overcommitted this term.",
+      "recommendation": "Speak to your academic advisor about whether a module withdrawal is possible before the deadline."
+    },
+
+    {
+      "_comment": "===== DECIDE (D*): hypotheses -> risk level recommendations =====",
+      "id": "D1",
+      "layer": "D",
+      "description": "HIGH RISK: critical overload and engagement risk together",
+      "conditions": [
+        {"fact": "critical_overload", "op": "is_true"},
+        {"fact": "engagement_risk", "op": "is_true"}
+      ],
+      "conclusion": "HIGH_RISK",
+      "confidence": 0.92,
+      "risk_vote": "High",
+      "signal": "Critical overload and engagement risk together — highest risk category.",
+      "recommendation": "Immediate intervention required. Contact your academic tutor and student support today."
+    },
+
+    {
+      "id": "D2",
+      "layer": "D",
+      "description": "HIGH RISK: academic failure risk signal",
+      "conditions": [
+        {"fact": "academic_failure_risk", "op": "is_true"}
+      ],
+      "conclusion": "HIGH_RISK",
+      "confidence": 0.88,
+      "risk_vote": "High",
+      "signal": "Academic failure risk confirmed — urgent action needed.",
+      "recommendation": "Arrange a meeting with your module coordinator this week."
+    },
+
+    {
+      "id": "D3",
+      "layer": "D",
+      "description": "HIGH RISK: exam failure risk",
+      "conditions": [
+        {"fact": "exam_failure_risk", "op": "is_true"}
+      ],
+      "conclusion": "HIGH_RISK",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Exam failure risk — insufficient preparation for an imminent exam.",
+      "recommendation": "Dedicate all available time to exam revision today and tomorrow."
+    },
+
+    {
+      "id": "D4",
+      "layer": "D",
+      "description": "HIGH RISK: student crisis signal",
+      "conditions": [
+        {"fact": "crisis_risk", "op": "is_true"}
+      ],
+      "conclusion": "HIGH_RISK",
+      "confidence": 0.90,
+      "risk_vote": "High",
+      "signal": "Student crisis detected — extreme stress and deadline cluster.",
+      "recommendation": "Contact student wellbeing services. Academic support is available."
+    },
+
+    {
+      "id": "D5",
+      "layer": "D",
+      "description": "HIGH RISK: schedule overload alone is sufficient for high risk",
+      "conditions": [
+        {"fact": "schedule_overload", "op": "is_true"}
+      ],
+      "conclusion": "HIGH_RISK",
+      "confidence": 0.85,
+      "risk_vote": "High",
+      "signal": "Schedule overload confirmed by the search planner — high risk of missing deadlines.",
+      "recommendation": "Review the overload recommendations generated by the planner."
+    },
+
+    {
+      "id": "D6",
+      "layer": "D",
+      "description": "MEDIUM RISK: burnout or paralysis risk",
+      "conditions": [
+        {"fact": "burnout_risk", "op": "is_true"}
+      ],
+      "conclusion": "MEDIUM_RISK",
+      "confidence": 0.70,
+      "risk_vote": "Medium",
+      "signal": "Burnout risk detected — workload and stress are combining negatively.",
+      "recommendation": "Pace your study sessions and include planned breaks."
+    },
+
+    {
+      "id": "D7",
+      "layer": "D",
+      "description": "MEDIUM RISK: deadline crunch",
+      "conditions": [
+        {"fact": "deadline_crunch", "op": "is_true"}
+      ],
+      "conclusion": "MEDIUM_RISK",
+      "confidence": 0.75,
+      "risk_vote": "Medium",
+      "signal": "Deadline crunch — tight but possibly manageable with good prioritisation.",
+      "recommendation": "Use the A* schedule strictly. Avoid any non-essential commitments this week."
+    },
+
+    {
+      "id": "D8",
+      "layer": "D",
+      "description": "MEDIUM RISK: overcommitted term",
+      "conditions": [
+        {"fact": "overcommitted_risk", "op": "is_true"}
+      ],
+      "conclusion": "MEDIUM_RISK",
+      "confidence": 0.70,
+      "risk_vote": "Medium",
+      "signal": "Overcommitted term detected — maximum credits with elevated stress.",
+      "recommendation": "Identify the module with the lowest grade weight and reduce effort there proportionally."
+    },
+
+    {
+      "_comment": "===== CONFIRM (C*): positive signals -> trust, risk downgrade =====",
+      "id": "C1",
+      "layer": "C",
+      "description": "Good attendance confirmed",
+      "conditions": [
+        {"fact": "attendance", "op": ">=", "value": 85}
+      ],
+      "conclusion": "strong_attendance",
+      "confidence": 0.85,
+      "risk_vote": "Low",
+      "signal": "Strong attendance record (85%+) — consistent classroom presence confirmed.",
+      "recommendation": ""
+    },
+
+    {
+      "id": "C2",
+      "layer": "C",
+      "description": "Strong academic performance confirmed",
+      "conditions": [
+        {"fact": "quiz_score_avg", "op": ">=", "value": 70}
+      ],
+      "conclusion": "strong_academic",
+      "confidence": 0.80,
+      "risk_vote": "Low",
+      "signal": "Quiz / test scores are strong (70%+) — good academic performance confirmed.",
+      "recommendation": ""
+    },
+
+    {
+      "id": "C3",
+      "layer": "C",
+      "description": "Planner succeeded — schedule is feasible",
+      "conditions": [
+        {"fact": "planner_found_goal", "op": "==", "value": true}
+      ],
+      "conclusion": "schedule_feasible",
+      "confidence": 0.75,
+      "risk_vote": "Low",
+      "signal": "The search planner found a complete, conflict-free schedule for all your tasks.",
+      "recommendation": "Follow the generated schedule. Re-run if a task or deadline changes."
+    },
+
+    {
+      "id": "C4",
+      "layer": "C",
+      "description": "Trusted engagement: good engagement signal confirmed",
+      "conditions": [
+        {"fact": "good_engagement", "op": "is_true"}
+      ],
+      "conclusion": "trusted_engagement",
+      "confidence": 0.80,
+      "risk_vote": "Low",
+      "signal": "Good engagement confirmed — high attendance and confidence working together.",
+      "recommendation": ""
+    },
+
+    {
+      "id": "C5",
+      "layer": "C",
+      "description": "Low pressure: trusted engagement and feasible schedule",
+      "conditions": [
+        {"fact": "trusted_engagement", "op": "is_true"},
+        {"fact": "schedule_feasible", "op": "is_true"}
+      ],
+      "conclusion": "low_pressure",
+      "confidence": 0.80,
+      "risk_vote": "Low",
+      "signal": "Trusted engagement and a feasible schedule together indicate a low-pressure week.",
+      "recommendation": "Keep up the routine and stay ahead of deadlines."
+    },
+
+    {
+      "id": "C6",
+      "layer": "C",
+      "description": "Positive trajectory: strong attendance and academic performance",
+      "conditions": [
+        {"fact": "strong_attendance", "op": "is_true"},
+        {"fact": "strong_academic", "op": "is_true"}
+      ],
+      "conclusion": "positive_trajectory",
+      "confidence": 0.85,
+      "risk_vote": "Low",
+      "signal": "Strong attendance and quiz performance — positive academic trajectory confirmed.",
+      "recommendation": "Maintain this pace. Consider reviewing ahead of upcoming exam topics."
+    },
+
+    {
+      "id": "C7",
+      "layer": "C",
+      "description": "DOWNGRADE: low_pressure warrants risk downgrade",
+      "conditions": [
+        {"fact": "low_pressure", "op": "is_true"}
+      ],
+      "conclusion": "DOWNGRADE_RISK",
+      "confidence": 0.75,
+      "risk_vote": "Low",
+      "signal": "Positive signals outweigh risk signals — risk level downgraded.",
+      "recommendation": "You are on track. Continue following your study plan."
+    }
+  ]
+}

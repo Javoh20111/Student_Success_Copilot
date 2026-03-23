@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+tabulate>=0.9
+# GenAI explainer — install whichever provider you have a key for:
+openai>=1.30          # pip install openai       (set OPENAI_API_KEY)
+anthropic>=0.25       # pip install anthropic    (set ANTHROPIC_API_KEY)
