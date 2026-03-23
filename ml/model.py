@@ -51,30 +51,23 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-try:
-    from sklearn.model_selection import train_test_split
-    from sklearn.tree import (
-        DecisionTreeClassifier,
-        export_text,
-    )
-    from sklearn.naive_bayes import GaussianNB
-    from sklearn.metrics import (
-        accuracy_score,
-        precision_score,
-        recall_score,
-        f1_score,
-        confusion_matrix,
-        classification_report,
-    )
-    from sklearn.dummy import DummyClassifier
-except ModuleNotFoundError as exc:
-    if exc.name == "sklearn":
-        raise ModuleNotFoundError(
-            "Missing dependency: scikit-learn. Install project dependencies "
-            "with `python -m pip install -r requirements.txt` and run the app "
-            "again."
-        ) from exc
-    raise
+from sklearn.model_selection import train_test_split
+from sklearn.tree import (
+    DecisionTreeClassifier,
+    export_text,
+)
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report,
+)
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing   import StandardScaler
+from sklearn.dummy           import DummyClassifier
 
 from .dataset import load_dataset
 from ui.display import print_header, print_subheader
@@ -335,7 +328,102 @@ def run_naive_bayes(
 
 
 # =============================================================================
-# 5.  Shared evaluation helper
+# 5.  Neural Network (MLPClassifier)
+# =============================================================================
+
+def run_neural_network(
+    X_train: Any, X_test: Any,
+    y_train: Any, y_test: Any,
+    epochs:      int  = 100,
+    hidden_units: tuple = (64, 32),
+    learning_rate: float = 0.001,
+) -> Dict[str, Any]:
+    """
+    Multi-Layer Perceptron classifier trained with backpropagation.
+
+    Why a neural network needs epochs
+    -----------------------------------
+    Unlike Decision Trees or Naive Bayes — which compute their answer in
+    a single pass through the data — a neural network updates its weights
+    incrementally using gradient descent. One epoch = one full pass through
+    the training set. After each pass, weights are nudged in the direction
+    that reduces the loss. The model needs many passes to converge.
+
+    Architecture
+    ------------
+    Input layer  : 10 features (one neuron per feature)
+    Hidden layer 1: 64 neurons, ReLU activation
+    Hidden layer 2: 32 neurons, ReLU activation
+    Output layer : 2 neurons (Pass / Fail), softmax → probability
+
+    Why features must be scaled for neural networks
+    ------------------------------------------------
+    Gradient descent is sensitive to feature scale. attendance (0–100) and
+    confidence_level (1–5) live on very different scales. Without scaling,
+    the gradient for attendance dominates and the network trains slowly or
+    diverges. StandardScaler (mean=0, std=1) fixes this.
+
+    Decision Trees and Naive Bayes do NOT need scaling — they use splits
+    and probability estimates that are scale-invariant.
+
+    Why we do NOT need scaling for trees
+    -------------------------------------
+    A DT asks "is attendance > 70?" — the threshold adjusts to the scale
+    automatically. NB estimates P(feature | class) per feature independently.
+    Neither uses distance metrics or gradient-based optimisation.
+
+    Hyperparameters chosen
+    ----------------------
+    epochs=100    : enough to converge on 800 training rows without overfitting
+    hidden=(64,32): two layers, halving width — a common pyramid pattern
+    lr=0.001      : standard Adam learning rate
+    """
+    # Neural networks require feature scaling — trees and NB do not
+    scaler  = StandardScaler()
+    Xtr_s   = scaler.fit_transform(X_train)
+    Xte_s   = scaler.transform(X_test)
+
+    clf = MLPClassifier(
+        hidden_layer_sizes = hidden_units,
+        activation         = "relu",
+        solver             = "adam",
+        learning_rate_init = learning_rate,
+        max_iter           = epochs,
+        random_state       = RANDOM_SEED,
+        early_stopping     = True,       # stop if validation loss stops falling
+        validation_fraction= 0.1,        # 10% of train set for early-stop check
+        n_iter_no_change   = 15,         # patience: stop after 15 stale epochs
+        verbose            = False,
+    )
+    clf.fit(Xtr_s, y_train)
+    y_pred = clf.predict(Xte_s)
+
+    actual_epochs = len(clf.loss_curve_)
+
+    result = _eval(clf, Xte_s, y_test, y_pred,
+                   f"Neural Network (MLP {hidden_units})")
+    result["model"]         = clf
+    result["scaler"]        = scaler          # must be saved alongside the model
+    result["feature_names"] = list(X_train.columns)
+    result["loss_curve"]    = clf.loss_curve_
+    result["epochs_run"]    = actual_epochs
+    result["epochs_max"]    = epochs
+    result["hidden_units"]  = hidden_units
+    result["learning_rate"] = learning_rate
+    result["stopped_early"] = actual_epochs < epochs
+    result["discussion"] = (
+        f"The MLP ran for {actual_epochs} epoch(s) "
+        f"({'early stopping triggered' if actual_epochs < epochs else 'full training'})."
+        f" Architecture: input(10) → {hidden_units[0]} → {hidden_units[1]} → output(2)."
+        " Features were StandardScaled before training (required for gradient descent)."
+        " Neural networks excel at learning non-linear feature interactions that"
+        " Decision Trees can only approximate by growing deeper."
+    )
+    return result
+
+
+# =============================================================================
+# 6.  Shared evaluation helper
 # =============================================================================
 
 def _eval(
@@ -648,6 +736,7 @@ def train_models(df: pd.DataFrame) -> Dict[str, Any]:
         "dt_d3":    run_decision_tree(X_train, X_test, y_train, y_test, 3),
         "dt_d7":    run_decision_tree(X_train, X_test, y_train, y_test, 7),
         "nb":       run_naive_bayes(X_train, X_test, y_train, y_test),
+        "nn":       run_neural_network(X_train, X_test, y_train, y_test),
     }
 
 
@@ -692,12 +781,16 @@ def predict_risk(
     row = pd.DataFrame([feature_vals])
     results = {}
 
-    for name in ("dt_d3", "nb"):
+    for name in ("dt_d3", "nb", "nn"):
         if name not in models or "model" not in models[name]:
             continue
         clf   = models[name]["model"]
         feats = models[name].get("feature_names", FEATURES_WITH_GENDER)
         row_f = row[feats]
+
+        # Neural network needs scaling — scaler stored alongside model
+        if name == "nn" and "scaler" in models[name]:
+            row_f = models[name]["scaler"].transform(row_f)
 
         pred  = int(clf.predict(row_f)[0])
         proba = clf.predict_proba(row_f)[0]
@@ -806,17 +899,49 @@ def run_full_ml_pipeline(df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
     print(f"  Discussion: {nb['discussion']}")
     print()
 
+    # ── Neural Network ────────────────────────────────────────────────────────
+    print_subheader("4.6  Neural Network — MLP with backpropagation")
+    nn = run_neural_network(X_train, X_test, y_train, y_test, epochs=100)
+    print_confusion_matrix(nn)
+    print(f"  Accuracy  : {nn['accuracy']:.3f}")
+    print(f"  Precision : {nn['precision']:.3f}")
+    print(f"  Recall    : {nn['recall']:.3f}")
+    print(f"  F1        : {nn['f1']:.3f}")
+    print(f"  Epochs run: {nn['epochs_run']} / {nn['epochs_max']} "
+          f"({'early stopping' if nn['stopped_early'] else 'full training'})")
+    print(f"  Architecture: 10 → {nn['hidden_units'][0]} → "
+          f"{nn['hidden_units'][1]} → 2")
+    print()
+    print("  Why epochs matter here:")
+    print("  Unlike DT and NB — which compute their answer in one data pass —")
+    print("  the MLP adjusts millions of weights via gradient descent.")
+    print("  Each epoch refines the weights slightly. Early stopping monitors")
+    print("  a validation split and halts when the loss stops improving,")
+    print("  preventing overfitting without needing to tune epoch count manually.")
+    print()
+    print(f"  Discussion: {nn['discussion']}")
+    print()
+
+    # Print loss curve summary
+    if nn['loss_curve']:
+        curve = nn['loss_curve']
+        print(f"  Training loss: {curve[0]:.4f} (epoch 1) → "
+              f"{curve[-1]:.4f} (epoch {len(curve)})")
+        print(f"  Total loss reduction: {curve[0]-curve[-1]:.4f} "
+              f"({(curve[0]-curve[-1])/curve[0]*100:.1f}%)")
+    print()
+
     # ── Comparison ────────────────────────────────────────────────────────────
-    all_results = [baseline, dt3, dt7, nb]
+    all_results = [baseline, dt3, dt7, nb, nn]
     print_comparison_table(all_results)
     analyse_error_types(all_results)
 
     # ── Gender bias ───────────────────────────────────────────────────────────
-    print_subheader("4.6  Gender bias analysis")
+    print_subheader("4.7  Gender bias analysis")
     bias = gender_bias_analysis(df)
 
     # ── Limitations ───────────────────────────────────────────────────────────
-    print_subheader("4.7  Limitations and responsible use")
+    print_subheader("4.8  Limitations and responsible use")
     print_limitations()
 
     return {
@@ -824,6 +949,7 @@ def run_full_ml_pipeline(df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         "dt3":      dt3,
         "dt7":      dt7,
         "nb":       nb,
+        "nn":       nn,
         "bias":     bias,
         "X_train":  X_train,
         "X_test":   X_test,
